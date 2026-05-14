@@ -5,7 +5,7 @@ from supabase import create_client, Client
 from datetime import datetime, timezone, timedelta
 
 st.set_page_config(
-    page_title="Painel LegalOne - Molina",
+    page_title="Chamados LegalOne - Molina",
     layout="wide",
     page_icon="⚖️"
 )
@@ -53,164 +53,587 @@ def calcular_sla(row):
     return "No prazo"
 
 
-st.title("⚖️ Painel de Chamados LegalOne")
-st.caption("Molina Advogados - Operacional LegalOne")
+def criar_protocolo(chamado_id):
+    return f"CH-{chamado_id:05d}"
 
-df = carregar_chamados()
 
-if df.empty:
-    st.info("Nenhum chamado LegalOne encontrado.")
-    st.stop()
+# =========================
+# SIDEBAR
+# =========================
 
-df["criado_em"] = pd.to_datetime(
-    df["criado_em"],
-    errors="coerce",
-    utc=True
+st.sidebar.title("⚖️ Chamados LegalOne")
+st.sidebar.success("👤 Operacional LegalOne")
+st.sidebar.write("Perfil: LegalOne")
+
+menu = st.sidebar.radio(
+    "Menu",
+    [
+        "Abrir Chamado",
+        "Painel Geral",
+        "TV Operacional",
+        "Relatórios",
+        "Atualizar Chamado"
+    ]
 )
 
-df["sla"] = df.apply(calcular_sla, axis=1)
-df["data"] = df["criado_em"].dt.date
 
-st.sidebar.title("Filtros")
+# =========================
+# ABRIR CHAMADO
+# =========================
 
-status_filtro = st.sidebar.multiselect(
-    "Status",
-    sorted(df["status"].dropna().unique()),
-    default=list(df["status"].dropna().unique())
-)
+if menu == "Abrir Chamado":
+    st.title("➕ Abrir Chamado LegalOne")
 
-categoria_filtro = st.sidebar.multiselect(
-    "Categoria",
-    sorted(df["categoria"].dropna().unique()),
-    default=list(df["categoria"].dropna().unique())
-)
+    with st.form("form_chamado_legalone"):
+        col1, col2 = st.columns(2)
 
-prioridade_filtro = st.sidebar.multiselect(
-    "Prioridade",
-    sorted(df["prioridade"].dropna().unique()),
-    default=list(df["prioridade"].dropna().unique())
-)
+        with col1:
+            solicitante = st.text_input("Nome do solicitante")
+            email_solicitante = st.text_input("E-mail")
+            unidade = st.text_input("Unidade", value="Google Chat")
 
-df_filtrado = df[
-    (df["status"].isin(status_filtro)) &
-    (df["categoria"].isin(categoria_filtro)) &
-    (df["prioridade"].isin(prioridade_filtro))
-]
+        with col2:
+            categoria = st.selectbox(
+                "Categoria",
+                [
+                    "Prazo",
+                    "Processo",
+                    "Andamento",
+                    "Tarefa",
+                    "Documento",
+                    "GED",
+                    "Acesso",
+                    "Relatório",
+                    "Mesa de Trabalho",
+                    "Sincronização",
+                    "Cadastro",
+                    "Contrato",
+                    "Lentidão",
+                    "Erro Geral"
+                ]
+            )
 
-total = len(df_filtrado)
-abertos = len(df_filtrado[df_filtrado["status"] == "Aberto"])
-andamento = len(df_filtrado[df_filtrado["status"] == "Em andamento"])
-finalizados = len(df_filtrado[df_filtrado["status"] == "Finalizado"])
-urgentes = len(df_filtrado[df_filtrado["prioridade"] == "Urgente"])
-atrasados = len(df_filtrado[df_filtrado["sla"] == "Atrasado"])
+            prioridade = st.selectbox(
+                "Prioridade",
+                ["Baixa", "Média", "Alta", "Urgente"]
+            )
 
-c1, c2, c3, c4, c5, c6 = st.columns(6)
+            status = st.selectbox(
+                "Status",
+                ["Aberto", "Em andamento", "Aguardando", "Finalizado", "Cancelado"]
+            )
 
-c1.metric("Total", total)
-c2.metric("Abertos", abertos)
-c3.metric("Andamento", andamento)
-c4.metric("Finalizados", finalizados)
-c5.metric("Urgentes", urgentes)
-c6.metric("Atrasados", atrasados)
+        descricao = st.text_area("Descrição do chamado", height=160)
 
-st.divider()
+        enviar = st.form_submit_button("✅ Abrir chamado")
 
-col1, col2 = st.columns(2)
+        if enviar:
+            if not solicitante or not descricao:
+                st.error("Preencha o solicitante e a descrição.")
+            else:
+                dados = {
+                    "solicitante": solicitante,
+                    "email_solicitante": email_solicitante,
+                    "unidade": unidade,
+                    "setor": "LegalOne",
+                    "categoria": categoria,
+                    "prioridade": prioridade,
+                    "descricao": descricao,
+                    "status": status,
+                    "criado_em": datetime.now(timezone.utc).isoformat()
+                }
 
-with col1:
-    resumo_categoria = (
-        df_filtrado.groupby("categoria")
-        .size()
-        .reset_index(name="quantidade")
-        .sort_values("quantidade", ascending=False)
-    )
+                result = supabase.table("chamados").insert(dados).execute()
 
-    fig_categoria = px.bar(
-        resumo_categoria,
-        x="categoria",
-        y="quantidade",
-        text="quantidade",
-        title="Chamados por Categoria"
-    )
+                chamado_id = result.data[0]["id"]
+                protocolo = criar_protocolo(chamado_id)
 
-    st.plotly_chart(fig_categoria, use_container_width=True)
+                supabase.table("chamados") \
+                    .update({"protocolo": protocolo}) \
+                    .eq("id", chamado_id) \
+                    .execute()
 
-with col2:
-    resumo_prioridade = (
-        df_filtrado.groupby("prioridade")
-        .size()
-        .reset_index(name="quantidade")
-        .sort_values("quantidade", ascending=False)
-    )
+                st.success(f"Chamado LegalOne criado com sucesso! {protocolo}")
 
-    fig_prioridade = px.bar(
-        resumo_prioridade,
-        x="prioridade",
-        y="quantidade",
-        text="quantidade",
-        title="Chamados por Prioridade"
-    )
 
-    st.plotly_chart(fig_prioridade, use_container_width=True)
+# =========================
+# PAINEL GERAL
+# =========================
 
-st.divider()
+elif menu == "Painel Geral":
+    st.title("📊 Painel Geral - LegalOne")
+    st.caption("Molina Advogados - Chamados Operacionais LegalOne")
 
-st.subheader("🚨 Chamados críticos")
+    df = carregar_chamados()
 
-df_criticos = df_filtrado[
-    (df_filtrado["prioridade"] == "Urgente") |
-    (df_filtrado["sla"] == "Atrasado")
-]
+    if df.empty:
+        st.info("Nenhum chamado LegalOne encontrado.")
+        st.stop()
 
-if df_criticos.empty:
-    st.success("Nenhum chamado crítico no momento.")
-else:
+    df["criado_em"] = pd.to_datetime(df["criado_em"], errors="coerce", utc=True)
+    df["sla"] = df.apply(calcular_sla, axis=1)
+
+    total = len(df)
+    abertos = len(df[df["status"] == "Aberto"])
+    andamento = len(df[df["status"] == "Em andamento"])
+    finalizados = len(df[df["status"] == "Finalizado"])
+    urgentes = len(df[df["prioridade"] == "Urgente"])
+    atrasados = len(df[df["sla"] == "Atrasado"])
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+
+    c1.metric("Total", total)
+    c2.metric("Abertos", abertos)
+    c3.metric("Andamento", andamento)
+    c4.metric("Finalizados", finalizados)
+    c5.metric("Urgentes", urgentes)
+    c6.metric("Atrasados", atrasados)
+
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        resumo_categoria = (
+            df.groupby("categoria")
+            .size()
+            .reset_index(name="quantidade")
+            .sort_values("quantidade", ascending=False)
+        )
+
+        fig = px.bar(
+            resumo_categoria,
+            x="categoria",
+            y="quantidade",
+            text="quantidade",
+            title="Chamados por Categoria"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        resumo_prioridade = (
+            df.groupby("prioridade")
+            .size()
+            .reset_index(name="quantidade")
+            .sort_values("quantidade", ascending=False)
+        )
+
+        fig = px.bar(
+            resumo_prioridade,
+            x="prioridade",
+            y="quantidade",
+            text="quantidade",
+            title="Chamados por Prioridade"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("📋 Lista de chamados LegalOne")
+
+    colunas = [
+        "protocolo",
+        "status",
+        "prioridade",
+        "sla",
+        "categoria",
+        "solicitante",
+        "email_solicitante",
+        "descricao",
+        "criado_em"
+    ]
+
+    colunas_existentes = [c for c in colunas if c in df.columns]
+
     st.dataframe(
-        df_criticos[
-            [
-                "protocolo",
-                "status",
-                "prioridade",
-                "sla",
-                "categoria",
-                "solicitante",
-                "descricao",
-                "criado_em"
-            ]
-        ],
+        df[colunas_existentes],
         use_container_width=True,
         hide_index=True
     )
 
-st.divider()
 
-st.subheader("📋 Todos os chamados LegalOne")
+# =========================
+# TV OPERACIONAL
+# =========================
 
-colunas = [
-    "protocolo",
-    "status",
-    "prioridade",
-    "sla",
-    "categoria",
-    "solicitante",
-    "email_solicitante",
-    "descricao",
-    "criado_em"
-]
+elif menu == "TV Operacional":
+    st.markdown("""
+    <style>
+    .main {
+        background: #0f172a;
+    }
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1rem;
+        max-width: 100%;
+    }
+    .tv-header {
+        background: linear-gradient(90deg, #111827, #1e293b);
+        color: white;
+        padding: 24px;
+        border-radius: 22px;
+        margin-bottom: 22px;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .tv-title {
+        font-size: 48px;
+        font-weight: 900;
+    }
+    .tv-subtitle {
+        font-size: 22px;
+        color: #cbd5e1;
+        margin-top: 8px;
+        font-weight: 700;
+    }
+    .tv-card {
+        padding: 24px;
+        border-radius: 22px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        margin-bottom: 18px;
+    }
+    .tv-number {
+        font-size: 58px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .tv-label {
+        font-size: 21px;
+        margin-top: 10px;
+        font-weight: 800;
+    }
+    .card-total {background: linear-gradient(135deg, #2563eb, #1e40af);}
+    .card-abertos {background: linear-gradient(135deg, #f97316, #c2410c);}
+    .card-andamento {background: linear-gradient(135deg, #eab308, #a16207);}
+    .card-urgentes {background: linear-gradient(135deg, #dc2626, #991b1b);}
+    .card-atrasados {background: linear-gradient(135deg, #7f1d1d, #450a0a);}
+    .card-finalizados {background: linear-gradient(135deg, #16a34a, #166534);}
+    .section-title {
+        color: white;
+        font-size: 30px;
+        font-weight: 900;
+        margin-top: 16px;
+        margin-bottom: 12px;
+    }
+    .alert-card {
+        background: #fee2e2;
+        color: #111827;
+        padding: 18px;
+        border-radius: 16px;
+        margin-bottom: 12px;
+        border-left: 10px solid #dc2626;
+        font-size: 20px;
+        font-weight: 700;
+    }
+    .last-card {
+        background: #ffffff;
+        color: #111827;
+        padding: 14px;
+        border-radius: 14px;
+        margin-bottom: 10px;
+        font-size: 18px;
+        font-weight: 700;
+        border-left: 8px solid #2563eb;
+    }
+    .ok-card {
+        background: #dcfce7;
+        color: #14532d;
+        padding: 22px;
+        border-radius: 16px;
+        font-size: 24px;
+        font-weight: 900;
+        text-align: center;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-colunas_existentes = [c for c in colunas if c in df_filtrado.columns]
+    agora_tela = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-st.dataframe(
-    df_filtrado[colunas_existentes],
-    use_container_width=True,
-    hide_index=True
-)
+    st.markdown(f"""
+    <div class="tv-header">
+        <div class="tv-title">⚖️ CENTRAL LEGALONE MOLINA</div>
+        <div class="tv-subtitle">Chamados operacionais LegalOne • Atualizado em {agora_tela}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-csv = df_filtrado[colunas_existentes].to_csv(index=False).encode("utf-8-sig")
+    df = carregar_chamados()
 
-st.download_button(
-    "⬇️ Baixar relatório CSV",
-    data=csv,
-    file_name="relatorio_legalone.csv",
-    mime="text/csv"
-)
+    if df.empty:
+        st.markdown("""
+        <div class="ok-card">
+            Nenhum chamado LegalOne encontrado.
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    df["criado_em"] = pd.to_datetime(df["criado_em"], errors="coerce", utc=True)
+    df["sla"] = df.apply(calcular_sla, axis=1)
+
+    total = len(df)
+    abertos = len(df[df["status"] == "Aberto"])
+    andamento = len(df[df["status"] == "Em andamento"])
+    finalizados = len(df[df["status"] == "Finalizado"])
+    urgentes = len(df[df["prioridade"] == "Urgente"])
+    atrasados = len(df[df["sla"] == "Atrasado"])
+
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+    cards = [
+        (col1, "Total", total, "card-total"),
+        (col2, "Abertos", abertos, "card-abertos"),
+        (col3, "Em andamento", andamento, "card-andamento"),
+        (col4, "Urgentes", urgentes, "card-urgentes"),
+        (col5, "Atrasados", atrasados, "card-atrasados"),
+        (col6, "Finalizados", finalizados, "card-finalizados"),
+    ]
+
+    for col, label, number, css in cards:
+        with col:
+            st.markdown(f"""
+            <div class="tv-card {css}">
+                <div class="tv-number">{number}</div>
+                <div class="tv-label">{label}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    colg1, colg2 = st.columns(2)
+
+    with colg1:
+        st.markdown('<div class="section-title">📌 Ranking por Categoria</div>', unsafe_allow_html=True)
+
+        ranking_categoria = (
+            df.groupby("categoria")
+            .size()
+            .reset_index(name="quantidade")
+            .sort_values("quantidade", ascending=False)
+            .head(8)
+        )
+
+        fig = px.bar(
+            ranking_categoria,
+            x="categoria",
+            y="quantidade",
+            text="quantidade"
+        )
+
+        fig.update_layout(
+            paper_bgcolor="#0f172a",
+            plot_bgcolor="#0f172a",
+            font=dict(color="white", size=22),
+            height=420
+        )
+
+        fig.update_traces(
+            textfont_size=28,
+            textfont_color="white",
+            textposition="outside"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with colg2:
+        st.markdown('<div class="section-title">🚨 Chamados Críticos</div>', unsafe_allow_html=True)
+
+        df_criticos = df[
+            (df["sla"] == "Atrasado") |
+            (df["prioridade"] == "Urgente")
+        ].head(6)
+
+        if df_criticos.empty:
+            st.markdown("""
+            <div class="ok-card">
+                Nenhum chamado crítico no momento.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for _, row in df_criticos.iterrows():
+                st.markdown(f"""
+                <div class="alert-card">
+                    <b>{row.get("protocolo", "")}</b> • {row.get("prioridade", "")} • {row.get("sla", "")}<br>
+                    <b>Categoria:</b> {row.get("categoria", "")}<br>
+                    <b>Descrição:</b> {row.get("descricao", "")}
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.markdown('<div class="section-title">🕒 Últimos Chamados</div>', unsafe_allow_html=True)
+
+    for _, row in df.head(6).iterrows():
+        st.markdown(f"""
+        <div class="last-card">
+            <b>{row.get("protocolo", "")}</b> • {row.get("status", "")} • {row.get("prioridade", "")}<br>
+            <b>{row.get("categoria", "")}</b><br>
+            {row.get("descricao", "")}
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# =========================
+# RELATÓRIOS
+# =========================
+
+elif menu == "Relatórios":
+    st.title("📄 Relatórios LegalOne")
+
+    df = carregar_chamados()
+
+    if df.empty:
+        st.info("Nenhum chamado LegalOne encontrado.")
+        st.stop()
+
+    df["criado_em"] = pd.to_datetime(df["criado_em"], errors="coerce", utc=True)
+    df["sla"] = df.apply(calcular_sla, axis=1)
+    df["data"] = df["criado_em"].dt.date
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        data_inicio = st.date_input("Data inicial", value=df["data"].min())
+
+    with col2:
+        data_fim = st.date_input("Data final", value=df["data"].max())
+
+    with col3:
+        status_filtro = st.multiselect(
+            "Status",
+            sorted(df["status"].dropna().unique()),
+            default=list(df["status"].dropna().unique())
+        )
+
+    col4, col5 = st.columns(2)
+
+    with col4:
+        categoria_filtro = st.multiselect(
+            "Categoria",
+            sorted(df["categoria"].dropna().unique()),
+            default=list(df["categoria"].dropna().unique())
+        )
+
+    with col5:
+        prioridade_filtro = st.multiselect(
+            "Prioridade",
+            sorted(df["prioridade"].dropna().unique()),
+            default=list(df["prioridade"].dropna().unique())
+        )
+
+    df_relatorio = df[
+        (df["data"] >= data_inicio) &
+        (df["data"] <= data_fim) &
+        (df["status"].isin(status_filtro)) &
+        (df["categoria"].isin(categoria_filtro)) &
+        (df["prioridade"].isin(prioridade_filtro))
+    ]
+
+    st.divider()
+
+    st.metric("Total filtrado", len(df_relatorio))
+
+    st.subheader("Resumo por categoria")
+
+    resumo = (
+        df_relatorio.groupby("categoria")
+        .size()
+        .reset_index(name="quantidade")
+        .sort_values("quantidade", ascending=False)
+    )
+
+    st.dataframe(resumo, use_container_width=True, hide_index=True)
+
+    st.subheader("Chamados do relatório")
+
+    colunas = [
+        "protocolo",
+        "status",
+        "prioridade",
+        "sla",
+        "categoria",
+        "solicitante",
+        "email_solicitante",
+        "descricao",
+        "criado_em"
+    ]
+
+    colunas_existentes = [c for c in colunas if c in df_relatorio.columns]
+
+    st.dataframe(
+        df_relatorio[colunas_existentes],
+        use_container_width=True,
+        hide_index=True
+    )
+
+    csv = df_relatorio[colunas_existentes].to_csv(index=False).encode("utf-8-sig")
+
+    st.download_button(
+        "⬇️ Baixar relatório CSV",
+        data=csv,
+        file_name="relatorio_legalone.csv",
+        mime="text/csv"
+    )
+
+
+# =========================
+# ATUALIZAR CHAMADO
+# =========================
+
+elif menu == "Atualizar Chamado":
+    st.title("✏️ Atualizar Chamado LegalOne")
+
+    df = carregar_chamados()
+
+    if df.empty:
+        st.info("Nenhum chamado LegalOne encontrado.")
+        st.stop()
+
+    df["opcao"] = (
+        df["protocolo"].fillna(df["id"].astype(str))
+        + " - "
+        + df["descricao"].fillna("").str[:60]
+    )
+
+    opcao = st.selectbox("Selecione o chamado", df["opcao"].tolist())
+
+    chamado = df[df["opcao"] == opcao].iloc[0]
+
+    st.info(f"Descrição: {chamado.get('descricao', '')}")
+
+    novo_status = st.selectbox(
+        "Novo status",
+        [
+            "Aberto",
+            "Em andamento",
+            "Aguardando",
+            "Finalizado",
+            "Cancelado"
+        ],
+        index=0
+    )
+
+    responsavel = st.text_input(
+        "Responsável",
+        value=chamado.get("responsavel") or ""
+    )
+
+    observacoes = st.text_area(
+        "Observações",
+        value=chamado.get("observacoes") or ""
+    )
+
+    if st.button("💾 Salvar alteração"):
+        dados_update = {
+            "status": novo_status,
+            "responsavel": responsavel,
+            "observacoes": observacoes,
+            "atualizado_em": datetime.now(timezone.utc).isoformat()
+        }
+
+        if novo_status == "Finalizado":
+            dados_update["finalizado_em"] = datetime.now(timezone.utc).isoformat()
+
+        supabase.table("chamados") \
+            .update(dados_update) \
+            .eq("id", int(chamado["id"])) \
+            .execute()
+
+        st.success("Chamado LegalOne atualizado com sucesso.")
+        st.rerun()
