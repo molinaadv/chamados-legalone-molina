@@ -9,6 +9,37 @@ st.set_page_config(
     layout="wide",
     page_icon="⚖️"
 )
+query_params = st.query_params
+
+modo_tv = query_params.get("tv", "0")
+
+if modo_tv == "1":
+    st.markdown("""
+        <style>
+        section[data-testid="stSidebar"]{
+            display:none;
+        }
+
+        header{
+            display:none;
+        }
+
+        #MainMenu{
+            visibility:hidden;
+        }
+
+        footer{
+            visibility:hidden;
+        }
+
+        .block-container{
+            padding-top:1rem;
+            max-width:100%;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    menu="TV Operacional"
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -65,16 +96,17 @@ st.sidebar.title("⚖️ Chamados LegalOne")
 st.sidebar.success("👤 Operacional LegalOne")
 st.sidebar.write("Perfil: LegalOne")
 
-menu = st.sidebar.radio(
-    "Menu",
-    [
-        "Abrir Chamado",
-        "Painel Geral",
-        "TV Operacional",
-        "Relatórios",
-        "Atualizar Chamado"
-    ]
-)
+if modo_tv != "1":
+    menu = st.sidebar.radio(
+        "Menu",
+        [
+            "Abrir Chamado",
+            "Painel Geral",
+            "TV Operacional",
+            "Relatórios",
+            "Atualizar Chamado"
+        ]
+    )
 
 
 # =========================
