@@ -3,48 +3,53 @@ import pandas as pd
 import plotly.express as px
 from supabase import create_client, Client
 from datetime import datetime, timezone, timedelta
+from streamlit_autorefresh import st_autorefresh
+import bcrypt
 
 st.set_page_config(
     page_title="Chamados LegalOne - Molina",
     layout="wide",
     page_icon="⚖️"
 )
-query_params = st.query_params
-
-modo_tv = query_params.get("tv", "0")
-
-if modo_tv == "1":
-    st.markdown("""
-        <style>
-        section[data-testid="stSidebar"]{
-            display:none;
-        }
-
-        header{
-            display:none;
-        }
-
-        #MainMenu{
-            visibility:hidden;
-        }
-
-        footer{
-            visibility:hidden;
-        }
-
-        .block-container{
-            padding-top:1rem;
-            max-width:100%;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    menu="TV Operacional"
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+query_params = st.query_params
+modo_tv = query_params.get("tv", "0") == "1"
+
+
+# =========================
+# FUNÇÕES
+# =========================
+
+def verificar_senha(senha_digitada, senha_salva):
+    if senha_salva and senha_salva.startswith("$2b$"):
+        return bcrypt.checkpw(
+            senha_digitada.encode("utf-8"),
+            senha_salva.encode("utf-8")
+        )
+
+    return senha_digitada == senha_salva
+
+
+def fazer_login(email, senha):
+    response = supabase.table("usuarios_sistema") \
+        .select("*") \
+        .eq("email", email) \
+        .eq("ativo", True) \
+        .execute()
+
+    if response.data:
+        usuario = response.data[0]
+        senha_salva = usuario.get("senha", "")
+
+        if verificar_senha(senha, senha_salva):
+            return usuario
+
+    return None
 
 
 def carregar_chamados():
@@ -89,14 +94,85 @@ def criar_protocolo(chamado_id):
 
 
 # =========================
-# SIDEBAR
+# LOGIN
 # =========================
 
-st.sidebar.title("⚖️ Chamados LegalOne")
-st.sidebar.success("👤 Operacional LegalOne")
-st.sidebar.write("Perfil: LegalOne")
+if "logado" not in st.session_state:
+    st.session_state.logado = False
 
-if modo_tv != "1":
+if "usuario" not in st.session_state:
+    st.session_state.usuario = {}
+
+if not st.session_state.logado:
+    st.title("🔐 Login - Chamados LegalOne")
+
+    with st.form("login_form"):
+        email = st.text_input("E-mail")
+        senha = st.text_input("Senha", type="password")
+        entrar = st.form_submit_button("Entrar")
+
+        if entrar:
+            usuario_login = fazer_login(email, senha)
+
+            if usuario_login:
+                st.session_state.logado = True
+                st.session_state.usuario = usuario_login
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+
+    st.stop()
+
+usuario = st.session_state.usuario
+
+
+# =========================
+# MODO TV
+# =========================
+
+if modo_tv:
+    st_autorefresh(
+        interval=30000,
+        key="tvrefresh_legalone"
+    )
+
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"]{
+        display:none;
+    }
+
+    header{
+        display:none;
+    }
+
+    footer{
+        visibility:hidden;
+    }
+
+    #MainMenu{
+        visibility:hidden;
+    }
+
+    .block-container{
+        padding-top:1rem;
+        max-width:100%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    menu = "TV Operacional"
+
+else:
+    st.sidebar.title("⚖️ Chamados LegalOne")
+    st.sidebar.success(f"👤 {usuario.get('nome', 'Usuário')}")
+    st.sidebar.write(f"Perfil: {usuario.get('perfil', 'LegalOne')}")
+
+    if st.sidebar.button("🚪 Sair"):
+        st.session_state.logado = False
+        st.session_state.usuario = {}
+        st.rerun()
+
     menu = st.sidebar.radio(
         "Menu",
         [
@@ -120,9 +196,20 @@ if menu == "Abrir Chamado":
         col1, col2 = st.columns(2)
 
         with col1:
-            solicitante = st.text_input("Nome do solicitante")
-            email_solicitante = st.text_input("E-mail")
-            unidade = st.text_input("Unidade", value="Google Chat")
+            solicitante = st.text_input(
+                "Nome do solicitante",
+                value=usuario.get("nome", "")
+            )
+
+            email_solicitante = st.text_input(
+                "E-mail",
+                value=usuario.get("email", "")
+            )
+
+            unidade = st.text_input(
+                "Unidade",
+                value=usuario.get("unidade") or "LegalOne"
+            )
 
         with col2:
             categoria = st.selectbox(
@@ -452,15 +539,25 @@ elif menu == "TV Operacional":
 
         fig.update_layout(
             paper_bgcolor="#0f172a",
-            plot_bgcolor="#0f172a",
-            font=dict(color="white", size=22),
+            plot_bgcolor="#111827",
+            font=dict(color="white", size=18),
+            xaxis=dict(
+                title="",
+                tickfont=dict(size=16, color="white")
+            ),
+            yaxis=dict(
+                title="Quantidade",
+                tickfont=dict(size=16, color="white")
+            ),
+            margin=dict(l=20, r=20, t=30, b=20),
             height=420
         )
 
         fig.update_traces(
-            textfont_size=28,
+            textfont_size=18,
             textfont_color="white",
-            textposition="outside"
+            textposition="outside",
+            cliponaxis=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
