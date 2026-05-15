@@ -15,8 +15,6 @@ st.set_page_config(
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-st.error("PROJETO: " + SUPABASE_URL)
-
 query_params = st.query_params
 modo_tv = query_params.get("tv", "0") == "1"
 
