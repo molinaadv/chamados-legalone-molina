@@ -20,6 +20,8 @@ supabase = create_client(
     SUPABASE_KEY
 )
 
+st.error("PROJETO: " + SUPABASE_URL)
+
 query_params = st.query_params
 modo_tv = query_params.get("tv", "0") == "1"
 
