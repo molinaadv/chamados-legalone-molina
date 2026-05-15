@@ -36,7 +36,7 @@ def verificar_senha(senha_digitada, senha_salva):
 
 
 def fazer_login(email, senha):
-    response = supabase.table("usuarios_sistema") \
+    response = supabase.table("usuarios_legalone") \
         .select("*") \
         .eq("email", email) \
         .execute()
