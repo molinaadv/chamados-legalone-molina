@@ -35,20 +35,36 @@ def verificar_senha(senha_digitada, senha_salva):
 
 
 def fazer_login(email, senha):
-    response = supabase.table("usuarios_painel") \
-        .select("*") \
-        .eq("email", email) \
-        .execute()
 
-    if response.data:
-        usuario = response.data[0]
-        senha_salva = usuario.get("senha_hash", "")
+    try:
+        response = supabase.table("usuarios_painel") \
+            .select("*") \
+            .eq("email", email) \
+            .execute()
 
-        if verificar_senha(senha, senha_salva):
-            return usuario
+        st.write("DEBUG:")
+        st.write(response.data)
 
-    return None
+        if response.data:
+            usuario = response.data[0]
 
+            senha_salva = usuario.get(
+                "senha_hash",
+                ""
+            )
+
+            if verificar_senha(
+                senha,
+                senha_salva
+            ):
+                return usuario
+
+        return None
+
+    except Exception as e:
+        st.error("ERRO REAL:")
+        st.code(str(e))
+        return None
 
 def carregar_chamados():
     response = supabase.table("chamados") \
