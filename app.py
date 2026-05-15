@@ -98,7 +98,7 @@ def calcular_sla(row):
 
 
 def criar_protocolo(chamado_id):
-    return f"CH-{chamado_id:05d}"
+    return f"LO-{chamado_id:05d}"
 
 
 # =========================
@@ -256,7 +256,7 @@ if menu == "Abrir Chamado":
                     "criado_em": datetime.now(timezone.utc).isoformat()
                 }
 
-                result = supabase.table("chamados_legalone")).insert(dados).execute()
+                result = supabase.table("chamados_legalone").insert(dados).execute()
 
                 chamado_id = result.data[0]["id"]
                 protocolo = criar_protocolo(chamado_id)
