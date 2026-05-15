@@ -36,19 +36,25 @@ def verificar_senha(senha_digitada, senha_salva):
 
 
 def fazer_login(email, senha):
-    response = supabase.table("usuarios_legalone") \
-        .select("*") \
-        .eq("email", email) \
-        .execute()
+    try:
+        response = supabase.table("usuarios_legalone") \
+            .select("*") \
+            .eq("email", email) \
+            .execute()
 
-    if response.data:
-        usuario = response.data[0]
-        senha_salva = usuario.get("senha", "")
+        if response.data:
+            usuario = response.data[0]
+            senha_salva = usuario.get("senha", "")
 
-        if verificar_senha(senha, senha_salva):
-            return usuario
+            if verificar_senha(senha, senha_salva):
+                return usuario
 
-    return None
+        return None
+
+    except Exception as e:
+        st.error("Erro ao consultar usuários LegalOne.")
+        st.code(str(e))
+        return None
 
 
 def carregar_chamados():
