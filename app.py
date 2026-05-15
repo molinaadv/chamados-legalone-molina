@@ -1,3 +1,6 @@
+st.write(st.secrets["SUPABASE_URL"])
+st.write(st.secrets["SUPABASE_KEY"][:20])
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
