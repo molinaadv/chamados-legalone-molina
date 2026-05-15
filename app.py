@@ -61,7 +61,7 @@ def fazer_login(email, senha):
 
 
 def carregar_chamados():
-    response = supabase.table("chamados") \
+    response = supabase.table("chamados_legalone") \
         .select("*") \
         .eq("setor", "LegalOne") \
         .order("criado_em", desc=True) \
@@ -256,12 +256,12 @@ if menu == "Abrir Chamado":
                     "criado_em": datetime.now(timezone.utc).isoformat()
                 }
 
-                result = supabase.table("chamados").insert(dados).execute()
+                result = supabase.table("chamados_legalone")).insert(dados).execute()
 
                 chamado_id = result.data[0]["id"]
                 protocolo = criar_protocolo(chamado_id)
 
-                supabase.table("chamados") \
+                supabase.table("chamados_legalone") \
                     .update({"protocolo": protocolo}) \
                     .eq("id", chamado_id) \
                     .execute()
@@ -914,7 +914,7 @@ elif menu == "Atualizar Chamado":
         if novo_status == "Finalizado":
             dados_update["finalizado_em"] = datetime.now(timezone.utc).isoformat()
 
-        supabase.table("chamados") \
+        supabase.table("chamados_legalone") \
             .update(dados_update) \
             .eq("id", int(chamado["id"])) \
             .execute()
