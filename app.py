@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 import bcrypt
 
 st.write(st.secrets["SUPABASE_URL"])
-st.write(st.secrets["SUPABASE_KEY"][:20]
+st.write(st.secrets["SUPABASE_KEY"][:20])
 
 st.set_page_config(
     page_title="Chamados LegalOne - Molina",
