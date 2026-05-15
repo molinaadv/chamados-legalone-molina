@@ -265,80 +265,300 @@ if menu == "Abrir Chamado":
 # =========================
 
 elif menu == "Gerenciar Usuários":
+
     st.title("👥 Gerenciar Usuários")
 
-    col1, col2 = st.columns(2)
+    tab1, tab2 = st.tabs([
+        "➕ Cadastrar",
+        "✏️ Editar / Excluir"
+    ])
 
-    with col1:
-        nome = st.text_input("Nome")
-        email = st.text_input("E-mail")
-        senha = st.text_input("Senha", type="password")
+    # =========================
+    # CADASTRAR
+    # =========================
 
-    with col2:
-        perfil = st.selectbox(
-            "Perfil",
-            ["Administrador", "Gestor", "Colaborador", "TV"]
-        )
+    with tab1:
 
-        setor = st.selectbox(
-            "Setor",
-            ["Agendamento", "Protocolo", "Análise", "Inicial", "TI"]
-        )
+        col1, col2 = st.columns(2)
 
-        unidade = st.selectbox(
-            "Unidade",
-            ["Atrium", "Online", "Cidade Nova"]
-        )
-
-    if st.button("✅ Cadastrar usuário"):
-        if not nome or not email or not senha:
-            st.error("Preencha nome, e-mail e senha.")
-            st.stop()
-
-        senha_hash = bcrypt.hashpw(
-            senha.encode("utf-8"),
-            bcrypt.gensalt()
-        ).decode("utf-8")
-
-        dados = {
-            "nome": nome,
-            "email": email,
-            "senha": senha_hash,
-            "perfil": perfil,
-            "setor": setor,
-            "unidade": unidade
-        }
-
-        try:
-            supabase.table("usuarios_sistema").insert(dados).execute()
-            st.success("Usuário cadastrado com sucesso!")
-        except Exception as e:
-            st.error("Erro ao cadastrar usuário.")
-            st.code(str(e))
-
-    st.divider()
-    st.subheader("📋 Usuários cadastrados")
-
-    try:
-        usuarios = supabase.table("usuarios_sistema") \
-            .select("id,nome,email,perfil,setor,unidade") \
-            .order("nome") \
-            .execute()
-
-        df_usuarios = pd.DataFrame(usuarios.data)
-
-        if df_usuarios.empty:
-            st.info("Nenhum usuário cadastrado.")
-        else:
-            st.dataframe(
-                df_usuarios,
-                use_container_width=True,
-                hide_index=True
+        with col1:
+            nome = st.text_input(
+                "Nome"
             )
 
-    except Exception as e:
-        st.warning("Não foi possível carregar a lista de usuários.")
-        st.code(str(e))
+            email = st.text_input(
+                "E-mail"
+            )
+
+            senha = st.text_input(
+                "Senha",
+                type="password"
+            )
+
+        with col2:
+
+            perfil = st.selectbox(
+                "Perfil",
+                [
+                    "Administrador",
+                    "Gestor",
+                    "Colaborador",
+                    "TV"
+                ]
+            )
+
+            setor = st.selectbox(
+                "Setor",
+                [
+                    "Agendamento",
+                    "Protocolo",
+                    "Análise",
+                    "Inicial",
+                    "Jurídico",
+                    "TI"
+                ]
+            )
+
+            unidade = st.selectbox(
+                "Unidade",
+                [
+                    "Atrium",
+                    "Online",
+                    "Cidade Nova",
+                    "Itacoatiara"
+                ]
+            )
+
+        if st.button(
+            "✅ Cadastrar usuário"
+        ):
+
+            if not nome or not email or not senha:
+                st.error(
+                    "Preencha todos os campos."
+                )
+
+            else:
+
+                senha_hash = bcrypt.hashpw(
+                    senha.encode("utf-8"),
+                    bcrypt.gensalt()
+                ).decode("utf-8")
+
+                dados = {
+                    "nome": nome,
+                    "email": email,
+                    "senha": senha_hash,
+                    "perfil": perfil,
+                    "setor": setor,
+                    "unidade": unidade
+                }
+
+                try:
+
+                    supabase.table(
+                        "usuarios_legalone"
+                    ).insert(
+                        dados
+                    ).execute()
+
+                    st.success(
+                        "Usuário cadastrado!"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        "Erro ao cadastrar."
+                    )
+
+                    st.code(str(e))
+
+    # =========================
+    # EDITAR / EXCLUIR
+    # =========================
+
+    with tab2:
+
+        try:
+
+            usuarios = supabase.table(
+                "usuarios_legalone"
+            ).select(
+                "*"
+            ).order(
+                "nome"
+            ).execute()
+
+            df = pd.DataFrame(
+                usuarios.data
+            )
+
+            if df.empty:
+                st.info(
+                    "Nenhum usuário."
+                )
+
+            else:
+
+                usuario_escolhido = st.selectbox(
+                    "Selecione usuário",
+                    df["nome"]
+                )
+
+                dados_usuario = df[
+                    df["nome"] ==
+                    usuario_escolhido
+                ].iloc[0]
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    nome_edit = st.text_input(
+                        "Nome",
+                        value=dados_usuario["nome"]
+                    )
+
+                    email_edit = st.text_input(
+                        "E-mail",
+                        value=dados_usuario["email"]
+                    )
+
+                    senha_nova = st.text_input(
+                        "Nova senha (opcional)",
+                        type="password"
+                    )
+
+                with col2:
+
+                    perfil_edit = st.selectbox(
+                        "Perfil",
+                        [
+                            "Administrador",
+                            "Gestor",
+                            "Colaborador",
+                            "TV"
+                        ],
+                        index=[
+                            "Administrador",
+                            "Gestor",
+                            "Colaborador",
+                            "TV"
+                        ].index(
+                            dados_usuario["perfil"]
+                        )
+                    )
+
+                    setor_edit = st.text_input(
+                        "Setor",
+                        value=dados_usuario["setor"]
+                    )
+
+                    unidade_edit = st.text_input(
+                        "Unidade",
+                        value=dados_usuario["unidade"]
+                    )
+
+                col_editar, col_excluir = st.columns(2)
+
+                with col_editar:
+
+                    if st.button(
+                        "💾 Salvar alterações"
+                    ):
+
+                        update = {
+                            "nome": nome_edit,
+                            "email": email_edit,
+                            "perfil": perfil_edit,
+                            "setor": setor_edit,
+                            "unidade": unidade_edit
+                        }
+
+                        if senha_nova:
+
+                            senha_hash = bcrypt.hashpw(
+                                senha_nova.encode(
+                                    "utf-8"
+                                ),
+                                bcrypt.gensalt()
+                            ).decode(
+                                "utf-8"
+                            )
+
+                            update[
+                                "senha"
+                            ] = senha_hash
+
+                        supabase.table(
+                            "usuarios_legalone"
+                        ).update(
+                            update
+                        ).eq(
+                            "id",
+                            int(
+                                dados_usuario["id"]
+                            )
+                        ).execute()
+
+                        st.success(
+                            "Atualizado!"
+                        )
+
+                        st.rerun()
+
+                with col_excluir:
+
+                    if st.button(
+                        "🗑️ Excluir usuário"
+                    ):
+
+                        supabase.table(
+                            "usuarios_legalone"
+                        ).delete().eq(
+                            "id",
+                            int(
+                                dados_usuario["id"]
+                            )
+                        ).execute()
+
+                        st.success(
+                            "Usuário excluído."
+                        )
+
+                        st.rerun()
+
+                st.divider()
+
+                st.subheader(
+                    "📋 Usuários cadastrados"
+                )
+
+                st.dataframe(
+                    df[
+                        [
+                            "id",
+                            "nome",
+                            "email",
+                            "perfil",
+                            "setor",
+                            "unidade"
+                        ]
+                    ],
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+        except Exception as e:
+
+            st.error(
+                "Erro ao carregar usuários."
+            )
+
+            st.code(str(e))
 
 
 # =========================
