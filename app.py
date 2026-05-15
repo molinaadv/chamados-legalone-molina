@@ -31,20 +31,18 @@ def verificar_senha(senha_digitada, senha_salva):
             senha_digitada.encode("utf-8"),
             senha_salva.encode("utf-8")
         )
-
     return senha_digitada == senha_salva
 
 
 def fazer_login(email, senha):
-    response = supabase.table("usuarios_sistema") \
+    response = supabase.table("usuarios_painel") \
         .select("*") \
         .eq("email", email) \
-        .eq("ativo", True) \
         .execute()
 
     if response.data:
         usuario = response.data[0]
-        senha_salva = usuario.get("senha", "")
+        senha_salva = usuario.get("senha_hash", "")
 
         if verificar_senha(senha, senha_salva):
             return usuario
@@ -127,37 +125,19 @@ usuario = st.session_state.usuario
 
 
 # =========================
-# MODO TV
+# MODO TV / MENU
 # =========================
 
 if modo_tv:
-    st_autorefresh(
-        interval=30000,
-        key="tvrefresh_legalone"
-    )
+    st_autorefresh(interval=30000, key="tvrefresh_legalone")
 
     st.markdown("""
     <style>
-    section[data-testid="stSidebar"]{
-        display:none;
-    }
-
-    header{
-        display:none;
-    }
-
-    footer{
-        visibility:hidden;
-    }
-
-    #MainMenu{
-        visibility:hidden;
-    }
-
-    .block-container{
-        padding-top:1rem;
-        max-width:100%;
-    }
+    section[data-testid="stSidebar"]{display:none;}
+    header{display:none;}
+    footer{visibility:hidden;}
+    #MainMenu{visibility:hidden;}
+    .block-container{padding-top:1rem; max-width:100%;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -180,7 +160,8 @@ else:
             "Painel Geral",
             "TV Operacional",
             "Relatórios",
-            "Atualizar Chamado"
+            "Atualizar Chamado",
+            "Gerenciar Usuários"
         ]
     )
 
@@ -273,6 +254,83 @@ if menu == "Abrir Chamado":
                     .execute()
 
                 st.success(f"Chamado LegalOne criado com sucesso! {protocolo}")
+
+
+# =========================
+# GERENCIAR USUÁRIOS
+# =========================
+
+elif menu == "Gerenciar Usuários":
+    st.title("👥 Gerenciar Usuários")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        nome = st.text_input("Nome")
+        email = st.text_input("E-mail")
+        senha = st.text_input("Senha", type="password")
+
+    with col2:
+        perfil = st.selectbox(
+            "Perfil",
+            ["Administrador", "Gestor", "Colaborador", "TV"]
+        )
+
+        setor = st.selectbox(
+            "Setor",
+            ["Agendamento", "Protocolo", "Análise", "Inicial", "TI"]
+        )
+
+        unidade = st.selectbox(
+            "Unidade",
+            ["Atrium", "Online", "Cidade Nova"]
+        )
+
+    if st.button("✅ Cadastrar usuário"):
+        if not nome or not email or not senha:
+            st.error("Preencha nome, e-mail e senha.")
+            st.stop()
+
+        dados = {
+            "nome": nome,
+            "email": email,
+            "senha_hash": bcrypt.hashpw(
+                senha.encode("utf-8"),
+                bcrypt.gensalt()
+            ).decode("utf-8"),
+            "perfil": perfil,
+            "setor": setor,
+            "unidade": unidade
+        }
+
+        try:
+            supabase.table("usuarios_painel").insert(dados).execute()
+            st.success("Usuário cadastrado com sucesso!")
+        except Exception:
+            st.error("E-mail já cadastrado ou erro ao salvar.")
+
+    st.divider()
+    st.subheader("📋 Usuários cadastrados")
+
+    try:
+        usuarios = supabase.table("usuarios_painel") \
+            .select("id,nome,email,perfil,setor,unidade") \
+            .order("nome") \
+            .execute()
+
+        df_usuarios = pd.DataFrame(usuarios.data)
+
+        if df_usuarios.empty:
+            st.info("Nenhum usuário cadastrado.")
+        else:
+            st.dataframe(
+                df_usuarios,
+                use_container_width=True,
+                hide_index=True
+            )
+
+    except Exception:
+        st.warning("Não foi possível carregar a lista de usuários.")
 
 
 # =========================
@@ -378,9 +436,7 @@ elif menu == "Painel Geral":
 elif menu == "TV Operacional":
     st.markdown("""
     <style>
-    .main {
-        background: #0f172a;
-    }
+    .main {background: #0f172a;}
     .block-container {
         padding-top: 1.5rem;
         padding-bottom: 1rem;
@@ -541,14 +597,8 @@ elif menu == "TV Operacional":
             paper_bgcolor="#0f172a",
             plot_bgcolor="#111827",
             font=dict(color="white", size=18),
-            xaxis=dict(
-                title="",
-                tickfont=dict(size=16, color="white")
-            ),
-            yaxis=dict(
-                title="Quantidade",
-                tickfont=dict(size=16, color="white")
-            ),
+            xaxis=dict(title="", tickfont=dict(size=16, color="white")),
+            yaxis=dict(title="Quantidade", tickfont=dict(size=16, color="white")),
             margin=dict(l=20, r=20, t=30, b=20),
             height=420
         )
@@ -655,7 +705,6 @@ elif menu == "Relatórios":
     ]
 
     st.divider()
-
     st.metric("Total filtrado", len(df_relatorio))
 
     st.subheader("Resumo por categoria")
@@ -728,13 +777,7 @@ elif menu == "Atualizar Chamado":
 
     novo_status = st.selectbox(
         "Novo status",
-        [
-            "Aberto",
-            "Em andamento",
-            "Aguardando",
-            "Finalizado",
-            "Cancelado"
-        ],
+        ["Aberto", "Em andamento", "Aguardando", "Finalizado", "Cancelado"],
         index=0
     )
 
